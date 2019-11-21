@@ -153,7 +153,8 @@ class PasswordTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_current_url '/users/password'
     assert_have_selector '#error_explanation'
-    assert_contain 'Password doesn\'t match confirmation'
+    assert_contain Devise.rails4? ?
+      "Password confirmation doesn't match Password" : "Password doesn't match confirmation"
     assert_not user.reload.valid_password?('987654321')
   end
 
@@ -227,15 +228,6 @@ class PasswordTest < ActionDispatch::IntegrationTest
       assert !user.reload.access_locked?
       assert warden.authenticated?(:user)
     end
-  end
-
-  test 'sign in user automatically and confirm after changing its password if it\'s not confirmed' do
-    user = create_user(:confirm => false)
-    request_forgot_password
-    reset_password :reset_password_token => user.reload.reset_password_token
-
-    assert warden.authenticated?(:user)
-    assert user.reload.confirmed?
   end
 
   test 'reset password request with valid E-Mail in XML format should return valid response' do

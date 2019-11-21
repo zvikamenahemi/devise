@@ -12,7 +12,7 @@ Devise is a flexible authentication solution for Rails based on Warden. It:
 
 * Is Rack based;
 * Is a complete MVC solution based on Rails engines;
-* Allows you to have multiple roles (or models/scopes) signed in at the same time;
+* Allows you to have multiple models signed in at the same time;
 * Is based on a modularity concept: use just what you really need.
 
 It's composed of 11 modules:
@@ -28,6 +28,8 @@ It's composed of 11 modules:
 * [Timeoutable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/Timeoutable): expires sessions that have no activity in a specified period of time.
 * [Validatable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/Validatable): provides validations of email and password. It's optional and can be customized, so you're able to define your own validations.
 * [Lockable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/Lockable): locks an account after a specified number of failed sign-in attempts. Can unlock via email or after a specified time period.
+
+Devise is guaranteed to be thread-safe on YARV. Thread-safety support on JRuby is on progress.
 
 ## Information
 
@@ -57,7 +59,7 @@ You can view the Devise documentation in RDoc format here:
 
 http://rubydoc.info/github/plataformatec/devise/master/frames
 
-If you need to use Devise with Rails 2.3, you can always run "gem server" from the command line after you install the gem to access the old documentation.
+If you need to use Devise with previous versions of Rails, you can always run "gem server" from the command line after you install the gem to access the old documentation.
 
 ### Example applications
 
@@ -90,7 +92,7 @@ Once you have solidified your understanding of Rails and authentication mechanis
 
 ## Getting started
 
-Devise 2.0 works with Rails 3.1 onwards. You can add it to your Gemfile with:
+Devise 3.0 works with Rails 3.2 onwards. You can add it to your Gemfile with:
 
 ```ruby
 gem 'devise'
@@ -110,7 +112,7 @@ The generator will install an initializer which describes ALL Devise's configura
 rails generate devise MODEL
 ```
 
-Replace MODEL by the class name used for the applications users, it's frequently 'User' but could also be 'Admin'. This will create a model (if one does not exist) and configure it with default Devise modules. Next, you'll usually run "rake db:migrate" as the generator will have created a migration file (if your ORM supports them). This generator also configures your config/routes.rb file to point to the Devise controller.
+Replace MODEL by the class name used for the applications users, it's frequently `User` but could also be `Admin`. This will create a model (if one does not exist) and configure it with default Devise modules. Next, you'll usually run `rake db:migrate` as the generator will have created a migration file (if your ORM supports them). This generator also configures your config/routes.rb file to point to the Devise controller.
 
 Note that you should re-start your app here if you've already started it. Otherwise you'll run into strange errors like users being unable to login and the route helpers being undefined.
 
@@ -143,7 +145,7 @@ user_session
 After signing in a user, confirming the account or updating the password, Devise will look for a scoped root path to redirect. Example: For a :user resource, it will use `user_root_path` if it exists, otherwise default `root_path` will be used. This means that you need to set the root inside your routes:
 
 ```ruby
-root :to => "home#index"
+root to: "home#index"
 ```
 
 You can also overwrite `after_sign_in_path_for` and `after_sign_out_path_for` to customize your redirect hooks.
@@ -176,34 +178,57 @@ devise :database_authenticatable, :registerable, :confirmable, :recoverable, :st
 
 Besides :stretches, you can define :pepper, :encryptor, :confirm_within, :remember_for, :timeout_in, :unlock_in and other values. For details, see the initializer file that was created when you invoked the "devise:install" generator described above.
 
-### Configuring multiple models
+### Strong Parameters
 
-Devise allows you to set up as many roles as you want. For example, you may have a User model and also want an Admin model with just authentication and timeoutable features. If so, just follow these steps:
+When you customize your own views, you may end up adding new attributes to forms. Rails 4 moved the parameter sanitization from the model to the controller, causing Devise to handle this concern at the controller as well.
+
+There are just three actions in Devise that allows any set of parameters to be passed down to the model, therefore requiring sanitization. Their names and the permited parameters by default are:
+
+* `sign_in` (`Devise::SessionsController#new`) - Permits only the authentication keys (like `email`)
+* `sign_up` (`Devise::RegistrationsController#create`) - Permits authentication keys plus `password` and `password_confirmation`
+* `account_update` (`Devise::RegistrationsController#update`) - Permits authentication keys plus `password`, `password_confirmation` and `current_password`
+
+In case you want to customize the permitted parameters (the lazy way™) you can do with a simple before filter in your `ApplicationController`:
 
 ```ruby
-# Create a migration with the required fields
-create_table :admins do |t|
-  t.string :email
-  t.string :encrypted_password
-  t.timestamps
+class ApplicationController < ActionController::Base
+  before_filter :configure_permitted_parameters, if: :devise_controller?
+
+  protected
+
+  def configure_permitted_parameters
+    devise_parameter_sanitizer.for(:sign_in) { |u| u.permit(:username, :email) }
+  end
 end
-
-# Inside your Admin model
-devise :database_authenticatable, :timeoutable
-
-# Inside your routes
-devise_for :admins
-
-# Inside your protected controller
-before_filter :authenticate_admin!
-
-# Inside your controllers and views
-admin_signed_in?
-current_admin
-admin_session
 ```
 
-On the other hand, you can simply run the generator!
+If you have multiple Devise models, you may want to set up different parameter sanitizer per model. In this case, we recommend inheriting from `Devise::ParameterSanitizer` and add your own logic:
+
+```ruby
+class User::ParameterSanitizer < Devise::ParameterSanitizer
+  def sign_in
+    default_params.permit(:username, :email)
+  end
+end
+```
+
+And then configure your controllers to use it:
+
+```ruby
+class ApplicationController < ActionController::Base
+  protected
+
+  def devise_parameter_sanitizer
+    if resource_class == User
+      User::ParameterSanitizer.new(User, :user, params)
+    else
+      super # Use the default one
+    end
+  end
+end
+```
+
+The example above overrides the permitted parameters for the user to be both `:username` and `:email`. The non-lazy way to configure parameters would be by defining the before filter above in a custom controller. We detail how to configure and customize controllers in some sections below.
 
 ### Configuring views
 
@@ -215,7 +240,7 @@ Since Devise is an engine, all its views are packaged inside the gem. These view
 rails generate devise:views
 ```
 
-If you have more than one role in your application (such as "User" and "Admin"), you will notice that Devise uses the same views for all roles. Fortunately, Devise offers an easy way to customize views. All you need to do is set "config.scoped_views = true" inside "config/initializers/devise.rb".
+If you have more than one Devise model in your application (such as "User" and "Admin"), you will notice that Devise uses the same views for all models. Fortunately, Devise offers an easy way to customize views. All you need to do is set "config.scoped_views = true" inside "config/initializers/devise.rb".
 
 After doing so, you will be able to have views based on the role like "users/sessions/new" and "admins/sessions/new". If no view is found within the scope, Devise will use the default view at "devise/sessions/new". You can also use the generator to generate scoped views:
 
@@ -227,22 +252,24 @@ rails generate devise:views users
 
 If the customization at the views level is not enough, you can customize each controller by following these steps:
 
-1) Create your custom controller, for example a Admins::SessionsController:
+1. Create your custom controller, for example a `Admins::SessionsController`:  
 
-```ruby
-class Admins::SessionsController < Devise::SessionsController
-end
-```
+    ```ruby
+    class Admins::SessionsController < Devise::SessionsController
+    end
+    ```
 
-2) Tell the router to use this controller:
+    Note that in the above example, the controller needs to be created in the `app/controller/admins/` directory.
 
-```ruby
-devise_for :admins, :controllers => { :sessions => "admins/sessions" }
-```
+2. Tell the router to use this controller:
 
-3) And since we changed the controller, it won't use the "devise/sessions" views, so remember to copy "devise/sessions" to "admin/sessions".
+    ```ruby
+    devise_for :admins, :controllers => { :sessions => "admins/sessions" }
+    ```
 
-Remember that Devise uses flash messages to let users know if sign in was successful or failed. Devise expects your application to call "flash[:notice]" and "flash[:alert]" as appropriate. Do not print the entire flash hash, print specific keys or at least remove the `:timedout` key from the hash as Devise adds this key in some circumstances, this key is not meant for display.
+3. And since we changed the controller, it won't use the `"devise/sessions"` views, so remember to copy `"devise/sessions"` to `"admin/sessions"`.
+
+    Remember that Devise uses flash messages to let users know if sign in was successful or failed. Devise expects your application to call `"flash[:notice]"` and `"flash[:alert]"` as appropriate. Do not print the entire flash hash, print specific keys or at least remove the `:timedout` key from the hash as Devise adds this key in some circumstances, this key is not meant for display.
 
 ### Configuring routes
 
@@ -334,12 +361,14 @@ sign_out @user         # sign_out(resource)
 
 There are two things that is important to keep in mind:
 
-1) These helpers are not going to work for integration tests driven by Capybara or Webrat. They are meant to be used with functional tests only. Instead, fill in the form or explicitly set the user in session;
+1. These helpers are not going to work for integration tests driven by Capybara or Webrat. They are meant to be used with functional tests only. Instead, fill in the form or explicitly set the user in session;
 
-2) If you are testing Devise internal controllers or a controller that inherits from Devise's, you need to tell Devise which mapping should be used before a request. This is necessary because Devise gets this information from router, but since functional tests do not pass through the router, it needs to be told explicitly. For example, if you are testing the user scope, simply do:
+2. If you are testing Devise internal controllers or a controller that inherits from Devise's, you need to tell Devise which mapping should be used before a request. This is necessary because Devise gets this information from router, but since functional tests do not pass through the router, it needs to be told explicitly. For example, if you are testing the user scope, simply do:
 
+    ```ruby
     @request.env["devise.mapping"] = Devise.mappings[:user]
     get :new
+    ```
 
 ### Omniauth
 
@@ -353,15 +382,42 @@ You can read more about Omniauth support in the wiki:
 
 * https://github.com/plataformatec/devise/wiki/OmniAuth:-Overview
 
+### Configuring multiple models
+
+Devise allows you to set up as many Devise models as you want. If you want to have an Admin model with just authentication and timeout features, in addition to the User model above, just run:
+
+```ruby
+# Create a migration with the required fields
+create_table :admins do |t|
+  t.string :email
+  t.string :encrypted_password
+  t.timestamps
+end
+
+# Inside your Admin model
+devise :database_authenticatable, :timeoutable
+
+# Inside your routes
+devise_for :admins
+
+# Inside your protected controller
+before_filter :authenticate_admin!
+
+# Inside your controllers and views
+admin_signed_in?
+current_admin
+admin_session
+```
+
+Alternatively, you can simply run the Devise generator.
+
+Keep in mind that those models will have completely different routes. They **do not** and **cannot** share the same controller for sign in, sign out and so on. In case you want to have different roles sharing the same actions, we recommend you to use a role-based approach, by either providing a role column or using [CanCan](https://github.com/ryanb/cancan).
+
 ### Other ORMs
 
 Devise supports ActiveRecord (default) and Mongoid. To choose other ORM, you just need to require it in the initializer file.
 
-### Migrating from other solutions
-
-Devise implements encryption strategies for Clearance, Authlogic and Restful-Authentication. To make use of these strategies, you need set the desired encryptor in the encryptor initializer config option and add :encryptable to your model. You might also need to rename your encrypted password and salt columns to match Devise's fields (encrypted_password and password_salt).
-
-## Troubleshooting
+## Additional information
 
 ### Heroku
 
@@ -372,8 +428,6 @@ config.assets.initialize_on_precompile = false
 ```
 
 Read more about the potential issues at http://guides.rubyonrails.org/asset_pipeline.html
-
-## Additional information
 
 ### Warden
 

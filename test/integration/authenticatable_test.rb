@@ -191,7 +191,7 @@ class AuthenticationRoutesRestrictions < ActionDispatch::IntegrationTest
     get dashboard_path
 
     assert_response :success
-    assert_template 'home/admin'
+    assert_template 'home/admin_dashboard'
     assert_contain 'Admin dashboard'
   end
 
@@ -203,7 +203,7 @@ class AuthenticationRoutesRestrictions < ActionDispatch::IntegrationTest
     get dashboard_path
 
     assert_response :success
-    assert_template 'home/user'
+    assert_template 'home/user_dashboard'
     assert_contain 'User dashboard'
   end
 
@@ -433,7 +433,7 @@ end
 
 class AuthenticationOthersTest < ActionDispatch::IntegrationTest
   test 'handles unverified requests gets rid of caches' do
-    swap UsersController, :allow_forgery_protection => true do
+    swap ApplicationController, :allow_forgery_protection => true do
       post exhibit_user_url(1)
       assert_not warden.authenticated?(:user)
 

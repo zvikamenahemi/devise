@@ -48,19 +48,19 @@ class DatabaseAuthenticatableTest < ActiveSupport::TestCase
 
   test "param filter should not convert booleans and integer to strings" do
     conditions = { "login" => "foo@bar.com", "bool1" => true, "bool2" => false, "fixnum" => 123, "will_be_converted" => (1..10) }
-    conditions = Devise::ParamFilter.new([], []).filter(conditions)
+    conditions = Devise::ParameterFilter.new([], []).filter(conditions)
     assert_equal( { "login" => "foo@bar.com", "bool1" => "true", "bool2" => "false", "fixnum" => "123", "will_be_converted" => "1..10" }, conditions)
   end
 
   test 'param filter should filter case_insensitive_keys as insensitive' do
     conditions = {'insensitive' => 'insensitive_VAL', 'sensitive' => 'sensitive_VAL'}
-    conditions = Devise::ParamFilter.new(['insensitive'], []).filter(conditions)
+    conditions = Devise::ParameterFilter.new(['insensitive'], []).filter(conditions)
     assert_equal( {'insensitive' => 'insensitive_val', 'sensitive' => 'sensitive_VAL'}, conditions )
   end
 
   test 'param filter should filter strip_whitespace_keys stripping whitespaces' do
     conditions = {'strip_whitespace' => ' strip_whitespace_val ', 'do_not_strip_whitespace' => ' do_not_strip_whitespace_val '}
-    conditions = Devise::ParamFilter.new([], ['strip_whitespace']).filter(conditions)
+    conditions = Devise::ParameterFilter.new([], ['strip_whitespace']).filter(conditions)
     assert_equal( {'strip_whitespace' => 'strip_whitespace_val', 'do_not_strip_whitespace' => ' do_not_strip_whitespace_val '}, conditions )
   end
 
@@ -123,13 +123,6 @@ class DatabaseAuthenticatableTest < ActiveSupport::TestCase
     assert user.reload.valid_password?('pass4321')
   end
 
-  test 'should update password with valid current password and :as option' do
-    user = create_user
-    assert user.update_with_password(:current_password => '12345678',
-      :password => 'pass4321', :password_confirmation => 'pass4321', :as => :admin)
-    assert user.reload.valid_password?('pass4321')
-  end
-
   test 'should add an error to current password when it is invalid' do
     user = create_user
     assert_not user.update_with_password(:current_password => 'other',
@@ -179,12 +172,6 @@ class DatabaseAuthenticatableTest < ActiveSupport::TestCase
   test 'should update the user without password' do
     user = create_user
     user.update_without_password(:email => 'new@example.com')
-    assert_equal 'new@example.com', user.email
-  end
-
-  test 'should update the user without password with :as option' do
-    user = create_user
-    user.update_without_password(:email => 'new@example.com', :as => :admin)
     assert_equal 'new@example.com', user.email
   end
 

@@ -10,13 +10,11 @@ if DEVISE_ORM == :active_record
 
     test "all files are properly created with rails31 migration syntax" do
       run_generator %w(monster)
-      assert_file "app/models/monster.rb", /devise/, /attr_accessible (:[a-z_]+(, )?)+/
       assert_migration "db/migrate/devise_create_monsters.rb", /def change/
     end
 
     test "all files for namespaced model are properly created" do
       run_generator %w(admin/monster)
-      assert_file "app/models/admin/monster.rb", /devise/, /attr_accessible (:[a-z_]+(, )?)+/
       assert_migration "db/migrate/devise_create_admin_monsters.rb", /def change/
     end
 
@@ -64,11 +62,41 @@ if DEVISE_ORM == :active_record
     destination File.expand_path("../../tmp", __FILE__)
     setup :prepare_destination
 
-    test "all files are properly created" do
+    test "all files are properly created in rails 4.0" do
+      ActiveRecord::Generators::DeviseGenerator.any_instance.stubs(:rails_3?).returns(false)
       simulate_inside_engine(RailsEngine::Engine, RailsEngine) do
         run_generator ["monster"]
 
-        assert_file "app/models/rails_engine/monster.rb", /devise/,/attr_accessible (:[a-z_]+(, )?)+/
+        assert_file "app/models/rails_engine/monster.rb", /devise/
+        assert_file "app/models/rails_engine/monster.rb" do |content|
+          assert_no_match /attr_accessible :email/, content
+        end
+      end
+    end
+
+    test "all files are properly created in rails 3.2 when strong_parameters gem is not installed" do
+      ActiveRecord::Generators::DeviseGenerator.any_instance.stubs(:rails_3?).returns(true)
+      ActiveRecord::Generators::DeviseGenerator.any_instance.stubs(:strong_parameters_enabled?).returns(false)
+      simulate_inside_engine(RailsEngine::Engine, RailsEngine) do
+        run_generator ["monster"]
+
+        assert_file "app/models/rails_engine/monster.rb", /devise/
+        assert_file "app/models/rails_engine/monster.rb" do |content|
+          assert_match /attr_accessible :email/, content
+        end
+      end
+    end
+
+    test "all files are properly created in rails 3.2 when strong_parameters gem is installed" do
+      ActiveRecord::Generators::DeviseGenerator.any_instance.stubs(:rails_3?).returns(true)
+      ActiveRecord::Generators::DeviseGenerator.any_instance.stubs(:strong_parameters_enabled?).returns(true)
+      simulate_inside_engine(RailsEngine::Engine, RailsEngine) do
+        run_generator ["monster"]
+
+        assert_file "app/models/rails_engine/monster.rb", /devise/
+        assert_file "app/models/rails_engine/monster.rb" do |content|
+          assert_no_match /attr_accessible :email/, content
+        end
       end
     end
   end
