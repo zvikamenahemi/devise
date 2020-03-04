@@ -10,7 +10,7 @@ class DefaultRoutingTest < ActionController::TestCase
 
   test 'map create user session' do
     assert_recognizes({:controller => 'devise/sessions', :action => 'create'}, {:path => 'users/sign_in', :method => :post})
-    assert_named_route "/users/sign_in", :user_session_path
+    assert_named_route "/users/sign_in", :devise_user_session_path
   end
 
   test 'map destroy user session' do

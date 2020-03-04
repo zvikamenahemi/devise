@@ -343,7 +343,7 @@ module ActionDispatch::Routing
       def devise_session(mapping, controllers) #:nodoc:
         resource :session, :only => [], :controller => controllers[:sessions], :path => "" do
           get   :new,     :path => mapping.path_names[:sign_in],  :as => "devise_new"
-          post  :create,  :path => mapping.path_names[:sign_in]
+          post  :create,  :path => mapping.path_names[:sign_in],  :as => "devise_"
           match :destroy, :path => mapping.path_names[:sign_out], :as => "devise_destroy", :via => mapping.sign_out_via
         end
       end
