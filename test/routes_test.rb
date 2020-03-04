@@ -5,7 +5,7 @@ ExpectedRoutingError = Devise.rails4? ? MiniTest::Assertion : ActionController::
 class DefaultRoutingTest < ActionController::TestCase
   test 'map new user session' do
     assert_recognizes({:controller => 'devise/sessions', :action => 'new'}, {:path => 'users/sign_in', :method => :get})
-    assert_named_route "/users/sign_in", :new_user_session_path
+    assert_named_route "/users/sign_in", :devise_new_user_session_path
   end
 
   test 'map create user session' do
@@ -15,7 +15,7 @@ class DefaultRoutingTest < ActionController::TestCase
 
   test 'map destroy user session' do
     assert_recognizes({:controller => 'devise/sessions', :action => 'destroy'}, {:path => 'users/sign_out', :method => :get})
-    assert_named_route "/users/sign_out", :destroy_user_session_path
+    assert_named_route "/users/sign_out", :devise_destroy_user_session_path
   end
 
   test 'map new user confirmation' do
